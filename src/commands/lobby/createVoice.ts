@@ -25,10 +25,10 @@ class CreateVoiceCommand extends Command {
         .then(channel => {
           try{
             this.roomRepository.createQueryBuilder()
-            .insert()
-            .into(Room)
-            .values({serverId: channel.guild?.id, roomId: channel.id})
-            .execute();
+              .insert()
+              .into(Room)
+              .values({serverId: channel.guild?.id, roomId: channel.id, lobby: true})
+              .execute();
           } catch (e) {
             this.client.logger.error(e)
           }
@@ -36,7 +36,7 @@ class CreateVoiceCommand extends Command {
         this.client.logger.info(`Created Room record for ${message.guild?.id}`);
       })
       .catch(console.error);
-      return message.channel.send("Created Auto Voice Rooms");
+      return message.channel.send(this.client.successEmbed("Created Auto Voice Rooms"));
     }
   }
 }

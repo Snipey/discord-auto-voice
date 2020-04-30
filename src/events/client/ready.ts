@@ -13,6 +13,7 @@ class ReadyListener extends Listener {
     const me = this.client.user;
     const guildSize = this.client.guilds.cache.size;
 
+    //! TEST REDIS
     this.client.logger.info(`Logged in as ${me?.tag} (ID: ${me?.id})`);
     me?.setActivity(`you join rooms`, { type: 'WATCHING' });
 

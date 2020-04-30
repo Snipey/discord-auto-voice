@@ -22,4 +22,14 @@ export class Room {
         default: ChannelType.VOICE
     })
     channelType?: ChannelType
+
+    @Column({
+        default: "false"
+    })
+    lobby?: boolean
+
+    @Column({
+        default: "false"
+    })
+    private?: boolean
 }

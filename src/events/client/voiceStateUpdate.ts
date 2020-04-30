@@ -1,69 +1,73 @@
 import Listener from "../../struct/Listener";
 import { VoiceState } from "discord.js";
+import { Room, ChannelType } from '../../entity/Room.entity';
 
 class voiceStateUpdateListener extends Listener {
-  constructor() {
-    super("voiceStateUpdate", {
-      event: "voiceStateUpdate",
-      emitter: "client",
-      category: "client"
-    });
-  }
-
-  async exec(oldState: VoiceState, newState: VoiceState) {
-  	// TODO Check if room is waiting room for private
-  	// Connecting to a channel
-  	let newChannelState = newState.channel;
-  	let oldChannelState = oldState.channel;
-
-  	let joinRoom = await this.roomRepository.findOne({
-  		where: { serverId: newChannelState?.guild.id, roomId: newChannelState?.id },
-  	});
-
-  	if(newChannelState) {
-  		// TODO Check if channel is auto voice
-  		// TODO Create a new channel with name
-  		if(joinRoom){
-  			// this.client.logger.log(`Connected to Join Room ${newChannelState.id}`)
-  			newChannelState.guild.channels.cache.map(channel => {
-  				if(channel.id == joinRoom?.roomId) {
-  					let parent = channel.parent;
-  					channel.guild.channels.create("New Room", {type: "voice"})
-  					.then(channel => {
-  						// console.log(parent?.id)
-  						channel.setParent(String(parent?.id))
-  						newState.setChannel(channel.id)
-  					})
-  				}
-  			})
-  			joinRoom.id
-  		}else{
-  			// this.client.logger.log(`Connected to ${newChannelState.id}`)
-  		}
-  	} else {
-  		let memberCount = oldChannelState?.members.size;
-  		// Check if members are not in channel
-  		if(Number(memberCount) < 1) {
-
-  			// TODO Remove channel if last in voice
-  			try {
-  				await oldChannelState?.guild.channels.cache.map(channel => {
-  					if(channel.id != String(joinRoom?.id)){
-  						channel.delete();
-  						this.roomRepository.createQueryBuilder()
-  							.delete()
-  							.where({serverId: oldChannelState?.guild.id, roomId: oldChannelState?.id})
-  							.execute();
-  					}
-  					this.client.logger.log(`Removed Channel ${channel?.id}`)
-  				})
-  				this.client.logger.log(`Removed Channel Record for ${oldChannelState?.id}`)
-  			} catch (e) {
-  				this.client.logger.error(e);
-  			}
-  		}
-  	}
-  }
+	constructor() {
+		super("voiceStateUpdate", {
+		event: "voiceStateUpdate",
+		emitter: "client",
+		category: "client"
+		});
+	}
+	
+	async exec(oldState: VoiceState, newState: VoiceState) {
+		// Channel States
+		let newChannelState = newState.channel;
+		let oldChannelState = oldState.channel;
+		// Get join channel
+		let joinRoom = await this.roomRepository.findOne({
+			where: { roomId: newChannelState?.id, lobby: true },
+		});
+		// Get Managed Room
+		let oldManagedRoom = await this.roomRepository.findOne({
+			where: { roomId: oldState.channel?.id , lobby: false },
+		});
+		if(newChannelState != null && newChannelState.id == joinRoom?.roomId){
+			// TODO Clean up old managed channels if join create
+			if(oldChannelState?.members.size == 0 && oldManagedRoom != undefined) {
+				oldChannelState.delete();
+			}
+			// ! CREATE CHANNEL
+			if(joinRoom != undefined){
+				try {
+					newChannelState?.guild.channels.create(`${newState.member?.displayName}'s Room`, { type: "voice" })
+					.then(channel => {
+						// Add channel to db
+						this.roomRepository.createQueryBuilder()
+						  .insert()
+						  .into(Room)
+						  .values({serverId: channel.guild?.id, roomId: channel.id, lobby: false, channelType: ChannelType.VOICE})
+						  .execute();
+						// Set parent category
+						channel.setParent(String(newChannelState?.parent?.id))
+						newState.setChannel(channel.id)
+					})
+				} catch (e) {
+					this.client.logger.error(e);
+				}
+			}
+		} else if (newState?.id != joinRoom?.roomId && oldState != null) {
+			// Get voice room
+			let voiceRoom = await this.roomRepository.findOne({
+				where: { roomId: oldState.channel?.id, lobby: false },
+			});
+			// ! DELETE CHANNEL
+			if(voiceRoom != undefined) {
+				try {
+					if(oldState.channel?.members.size == 0) {
+						this.roomRepository.createQueryBuilder()
+							.delete()
+							.where({serverId: oldChannelState?.guild.id, roomId: oldChannelState?.id})
+							.execute();
+						oldState.channel.delete();
+					}
+				} catch (e) {
+					this.client.logger.error(e);
+				}
+			}
+		}
+    }
 }
 
 export default voiceStateUpdateListener;
